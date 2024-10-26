@@ -29,7 +29,7 @@ void scan_inplace_par(int* arr, size_t begin, size_t end, size_t block_size) {
         }
         return;
     }
-    size_t med = (end - begin) / 2;
+    size_t med = (end + begin) / 2;
     cilk_spawn scan_inplace_par(arr, begin, med, block_size);
     scan_inplace_par(arr, med, end, block_size);
     cilk_sync;
@@ -40,13 +40,14 @@ void scan_inplace_par(int* arr, size_t begin, size_t end, size_t block_size) {
     map_inplace_par(arr, med, end, add_last_val, block_size);
 }
 
-int* filter_par(int const* arr, size_t size, std::function<bool(int)> predicate, size_t* res_size, size_t block_size) {
+int* filter_par(int const* arr, size_t begin, size_t end, std::function<bool(int)> const& predicate, size_t* res_size, size_t block_size) {
+    size_t size = end - begin;
     // Create copy, to not damage original array
     int* arr_cpy = (int*) malloc(size);
     auto cpy_iter = [&](size_t i) {
-        arr_cpy[i] = arr[i];
+        arr_cpy[i] = arr[i + begin];
     };
-    parallel_for(0, size, cpy_iter, block_size);
+    parallel_for(begin, end, cpy_iter, block_size);
     // Actual filter
     auto mapping_from_predicate = [&](int v) {
         return predicate(v) ? 1 : 0;
@@ -63,7 +64,7 @@ int* filter_par(int const* arr, size_t size, std::function<bool(int)> predicate,
             filtered = arr_cpy[i] > arr_cpy[i - 1];
         }
         if (filtered) {
-            result[arr_cpy[i] - 1] = arr[i];
+            result[arr_cpy[i] - 1] = arr[i + begin];
         }
     };
     parallel_for(0, size, filter_move_iter, block_size);
