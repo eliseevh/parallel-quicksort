@@ -65,6 +65,8 @@ void quicksort_par_impl(int* arr, size_t begin, size_t end, size_t block_size) {
     parallel_for(0, less_count, less_move_iter, block_size);
     parallel_for(0, end - begin - less_count - greater_count, eq_move_iter, block_size);
     parallel_for(0, greater_count, greater_move_iter, block_size);
+    free(less_part);
+    free(greater_part);
 
     cilk_spawn quicksort_par_impl(arr, begin, begin + less_count, block_size);
     quicksort_par_impl(arr, end - greater_count, end, block_size);
