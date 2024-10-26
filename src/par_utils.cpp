@@ -43,11 +43,11 @@ void scan_inplace_par(int* arr, size_t begin, size_t end, size_t block_size) {
 int* filter_par(int const* arr, size_t begin, size_t end, std::function<bool(int)> const& predicate, size_t* res_size, size_t block_size) {
     size_t size = end - begin;
     // Create copy, to not damage original array
-    int* arr_cpy = (int*) malloc(size);
+    int* arr_cpy = (int*) malloc(size * sizeof(int));
     auto cpy_iter = [&](size_t i) {
         arr_cpy[i] = arr[i + begin];
     };
-    parallel_for(begin, end, cpy_iter, block_size);
+    parallel_for(0, size, cpy_iter, block_size);
     // Actual filter
     auto mapping_from_predicate = [&](int v) {
         return predicate(v) ? 1 : 0;
@@ -55,7 +55,7 @@ int* filter_par(int const* arr, size_t begin, size_t end, std::function<bool(int
     map_inplace_par(arr_cpy, 0, size, mapping_from_predicate, block_size);
     scan_inplace_par(arr_cpy, 0, size, block_size);
     *res_size = arr_cpy[size - 1];
-    int* result = (int*) malloc(*res_size);
+    int* result = (int*) malloc(*res_size * sizeof(int));
     auto filter_move_iter = [&](size_t i) {
         bool filtered;
         if (i == 0) {
