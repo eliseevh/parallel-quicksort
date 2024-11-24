@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
-project(quicksort CXX)
+project(quicksort C)
 
-set(CMAKE_CXX_STANDARD 11)
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopencilk")
 
-add_executable(quicksort src/quicksort.cpp src/main.cpp src/par_utils.cpp)
+add_library(quicksort_lib src/quicksort.c)
+
+
