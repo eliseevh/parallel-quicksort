@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <cilk/cilk.h>
 
 void swap(int* p1, int* p2) {
@@ -33,36 +34,71 @@ void quicksort_seq_impl(int* arr, size_t begin, size_t end) {
 void quicksort_seq(int* arr, size_t size) {
     quicksort_seq_impl(arr, 0, size);
 }
+
 void quicksort_par_impl(int* arr, size_t begin, size_t end, size_t block_size);
-size_t qpivl(int* arr, size_t begin, size_t end, int pivot, size_t block_size) {
-    int* l = (int*) malloc((end - begin) * sizeof(int));
-    size_t cnt = 0;
-    for (size_t i = begin; i < end; ++i) {
-        if (arr[i] < pivot) {
-            l[cnt++] = arr[i];
+
+void scan_sum_par(int* arr, size_t begin, size_t end, size_t block_size) {
+    if (end - begin <= block_size) {
+        for (size_t i = begin; i + 1 < end; ++i) {
+            arr[i + 1] += arr[i];
+        }
+        return;
+    }
+    size_t med = (end + begin) / 2;
+    cilk_spawn scan_sum_par(arr, begin, med, block_size);
+    scan_sum_par(arr, med, end, block_size);
+    cilk_sync;
+    int last_val = arr[med - 1];
+    cilk_for (size_t i = med; i < end; ++i) {
+        arr[i] += last_val;
+    }
+}
+
+size_t filter_par(int const* arr, size_t begin, size_t end, int** res, size_t block_size, int* pred) {
+    scan_sum_par(pred, 0, end - begin, block_size);
+    size_t cnt = pred[end - begin - 1];
+    *res = (int*) malloc(cnt * sizeof(int));
+    cilk_for (size_t i = 0; i < end - begin; ++i) {
+        bool filtered;
+        if (i == 0) {
+            filtered = pred[i] == 1;
+        } else {
+            filtered = pred[i] > pred[i - 1];
+        }
+        if (filtered) {
+            (*res)[pred[i] - 1] = arr[i + begin];
         }
     }
-    quicksort_par_impl(l, 0, cnt, block_size);
-    for (size_t i = 0; i < cnt; ++i) {
-        arr[i + begin] = l[i];
-    }
-    free(l);
     return cnt;
 }
 
-size_t qpivg(int* arr, size_t begin, size_t end, int pivot, size_t block_size) {
-    int* g = (int*)malloc((end - begin) * sizeof(int));
-    size_t cnt = 0;
-    for (size_t i = begin; i < end; ++i) {
-        if (arr[i] > pivot) {
-            g[cnt++] = arr[i];
+size_t qpivl(int const* arr, size_t begin, size_t end, int pivot, int** res, size_t block_size) {
+    int* l = (int*) malloc((end - begin) * sizeof(int));
+    cilk_for (size_t i = begin; i < end; ++i) {
+        if (arr[i] < pivot) {
+            l[i - begin] = 1;
+        } else {
+            l[i - begin] = 0;
         }
     }
-    quicksort_par_impl(g, 0, cnt, block_size);
-    for (size_t i = 0; i < cnt; ++i) {
-        arr[end - cnt + i] = g[i];
+    size_t cnt = filter_par(arr, begin, end, res, block_size, l);
+    free(l);
+    quicksort_par_impl(*res, 0, cnt, block_size);
+    return cnt;
+}
+
+size_t qpivg(int const* arr, size_t begin, size_t end, int pivot, int** res, size_t block_size) {
+    int* g = (int*)malloc((end - begin) * sizeof(int));
+    cilk_for (size_t i = begin; i < end; ++i) {
+        if (arr[i] > pivot) {
+            g[i - begin] = 1;
+        } else {
+            g[i - begin] = 0;
+        }
     }
+    size_t cnt = filter_par(arr, begin, end, res, block_size, g);
     free(g);
+    quicksort_par_impl(*res, 0, cnt, block_size);
     return cnt;
 }
 
@@ -74,13 +110,21 @@ void quicksort_par_impl(int* arr, size_t begin, size_t end, size_t block_size) {
     }
     size_t pivot_idx = rand() % n;
     int pivot = arr[begin + pivot_idx];
+    int* less_part;
+    int* greater_part;
+    size_t less = cilk_spawn qpivl(arr, begin, end, pivot, &less_part, block_size);
 
-    size_t less = cilk_spawn qpivl(arr, begin, end, pivot, block_size);
-
-    size_t greater = qpivg(arr, begin, end, pivot, block_size);
+    size_t greater = qpivg(arr, begin, end, pivot, &greater_part, block_size);
     cilk_sync;
-
-    for (size_t i = begin + less; i < end - greater; ++i) {
+    cilk_for (size_t i = begin; i < begin + less; ++i) {
+        arr[i] = less_part[i - begin];
+    }
+    free(less_part);
+    cilk_for (size_t i = end - greater; i < end; ++i) {
+        arr[i] = greater_part[i - end + greater];
+    }
+    free(greater_part);
+    cilk_for (size_t i = begin + less; i < end - greater; ++i) {
         arr[i] = pivot;
     }
 }
