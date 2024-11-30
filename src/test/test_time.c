@@ -47,7 +47,7 @@ float main_seq() {
         }
     }
     float avg = (float)times_sum / ITERS;
-    printf("Sequential average time: %0.2f\n", avg);
+    fprintf(stderr, "Sequential average time: %0.2f\n", avg);
     return avg;
 }
 
@@ -74,12 +74,12 @@ float main_par() {
         }
     }
     float avg = (float)times_sum / ITERS;
-    printf("Parallel average time: %0.2f\n", avg);
+    fprintf(stderr, "Parallel average time: %0.2f\n", avg);
     return avg;
 }
 
 int main() {
     float avg_par = main_par();
     float avg_seq = main_seq();
-    printf("Parallel average time is %0.2f times lower than sequential\n", avg_seq / avg_par);
+    fprintf(stderr, "Parallel average time is %0.2f times lower than sequential\n", avg_seq / avg_par);
 }
